@@ -1,8 +1,13 @@
 import os
+from time import time
 from typing import Union
 
 import requests
+import telegram
 from dotenv import load_dotenv
+
+from custom_exeptions import APIError
+from custom_types import JSONAnswer, Homework
 
 load_dotenv()
 
@@ -25,19 +30,21 @@ HOMEWORK_VERDICTS = {
 PRACTICUM_PROFILE_LINK = 'https://practicum.yandex.ru/profile/'
 
 
-class APIRequestError(Exception):
-    pass
-
-
-def check_tokens():
-    pass
+def check_tokens() -> None:
+    tokens: list = [PRACTICUM_TOKEN, TELEGRAM_TOKEN]
+    for token in tokens:
+        if token is None:
+            print('log token none')
+            raise TypeError(f'Token {token=}')
 
 
 def send_message(bot, message):
     pass
 
 
-def get_api_answer(timestamp: int) -> Union[dict[str, object], requests.exceptions.RequestException]:
+def get_api_answer(
+    timestamp: int,
+) -> JSONAnswer:
     payload: dict[str, int] = {'from_date': timestamp}
     try:
         res: requests.Response = requests.get(
@@ -45,47 +52,73 @@ def get_api_answer(timestamp: int) -> Union[dict[str, object], requests.exceptio
         )
     except requests.exceptions.RequestException as err:
         print('log err')
-        return err
+        raise APIError(err)
 
     print('log ok')
     return res.json()
 
 
-def check_response(response: dict[str, object]):
-    keys = ['homeworks', 'current_date']
-    if list(response.keys()) != keys:
-        print('log wrong keys in res')
+def check_response(response: JSONAnswer) -> None:
+    """Проверяет верность полученного от API ответа."""
+    homeworks_key = 'homeworks'
+    try:
+        hw_list: list[Homework] = response[homeworks_key]
+    except KeyError as err:
+        print('log no key in array')
+        raise KeyError(f'No key {homeworks_key} in response: {err}')
+
+    hw_keys: list[str] = [
+        'id',
+        'status',
+        'homework_name',
+        'reviewer_comment',
+        'date_updated',
+        'lesson_name',
+    ]
+    for hw in hw_list:
+        for key in hw_keys:
+            try:
+                _hw_field: Union[int, str] = hw[key]
+            except KeyError as err:
+                print('log no key in hw')
+                raise KeyError(f'No key {key} in homework: {err}')
 
 
-res = get_api_answer(1624968474)
+def parse_status(homework: Homework) -> str:
+    """Получает имя и текущий статус домашней работы и возвращает информационное сообщение по ней."""
+    homework_name: str = homework.get('homework_name')
+    status: str = homework.get('status')
+    try:
+        verdict = HOMEWORK_VERDICTS[status]
+    except KeyError as err:
+        print('log key err')
+        raise KeyError(f'No key {status} in verdicts: {err}')
 
-check_response(res)
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
-# def parse_status(homework):
-#     ...
-#
-#     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-#
-#
-# def main():
-#     """Основная логика работы бота."""
-#
-#     ...
-#
-#     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-#     timestamp = int(time.time())
-#
-#     ...
-#
-#     while True:
-#         try:
-#             ...
-#
-#         except Exception as error:
-#             message = f'Сбой в работе программы: {error}'
-#             ...
-#         ...
-#
-#
-# if __name__ == '__main__':
-#     main()
+
+def main():
+    """Основная логика работы бота."""
+
+    try:
+        check_tokens()
+    except TypeError:
+        msg = 'Ошибка при проверке API-токена.'
+
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time())
+
+    ...
+
+    while True:
+        try:
+            ...
+
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            ...
+        ...
+
+
+if __name__ == '__main__':
+    main()
