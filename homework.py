@@ -1,3 +1,4 @@
+import logging
 import os
 from time import time
 from typing import Union
@@ -11,6 +12,14 @@ from custom_types import JSONAnswer, Homework
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
+f_handler = logging.FileHandler(f'{__name__}.log')
+f_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+f_handler.setLevel(logging.DEBUG)
+f_handler.setFormatter(f_format)
+
+logger.addHandler(f_handler)
 
 PRACTICUM_TOKEN: str = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN: str = os.getenv('BOT_TOKEN')
@@ -30,12 +39,51 @@ HOMEWORK_VERDICTS = {
 PRACTICUM_PROFILE_LINK = 'https://practicum.yandex.ru/profile/'
 
 
+def check_api_availability() -> None:
+    pass
+
 def check_tokens() -> None:
-    tokens: list = [PRACTICUM_TOKEN, TELEGRAM_TOKEN]
-    for token in tokens:
+    tokens: list = [
+        (
+            PRACTICUM_TOKEN,
+            'PRACTICUM_TOKEN',
+            requests.Request(
+                'GET',
+                ENDPOINT,
+                HEADERS,
+                params={'from_date': int(time())},
+            ).prepare(),
+        ),
+        (
+            TELEGRAM_TOKEN,
+            'TELEGRAM_TOKEN',
+            requests.Request(
+                'GET',
+                f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe',
+            ).prepare(),
+        ),
+    ]
+    for token, token_name, prepped_req in tokens:
         if token is None:
-            print('log token none')
-            raise TypeError(f'Token {token=}')
+            err_msg: str = f'Token {token_name} is not defined.'
+            logger.error(err_msg)
+            raise TypeError(err_msg)
+
+        session = requests.Session()
+
+        try:
+            res = session.send(prepped_req)
+        except requests.exceptions.RequestException as err:
+            err_msg: str = (
+                f'Endpoint error when checking token {token_name} validity.'
+            )
+            logger.error(err_msg)
+            raise APIError(err_msg) from err
+
+        if res.status_code != 200:
+            err_msg: str = f'Token {token_name} is not valid.'
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
 
 def send_message(bot, message):
@@ -97,28 +145,31 @@ def parse_status(homework: Homework) -> str:
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
-def main():
-    """Основная логика работы бота."""
-
-    try:
-        check_tokens()
-    except TypeError:
-        msg = 'Ошибка при проверке API-токена.'
-
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time())
-
-    ...
-
-    while True:
-        try:
-            ...
-
-        except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            ...
-        ...
+check_tokens()
 
 
-if __name__ == '__main__':
-    main()
+# def main():
+#     """Основная логика работы бота."""
+#
+#     try:
+#         check_tokens()
+#     except TypeError:
+#         msg = 'Ошибка при проверке API-токена.'
+#
+#     bot = telegram.Bot(token=TELEGRAM_TOKEN)
+#     timestamp = int(time())
+#
+#     ...
+#
+#     while True:
+#         try:
+#             ...
+#
+#         except Exception as error:
+#             message = f'Сбой в работе программы: {error}'
+#             ...
+#         ...
+#
+#
+# if __name__ == '__main__':
+#     main()
