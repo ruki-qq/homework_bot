@@ -50,9 +50,9 @@ def check_tokens() -> None:
     ]
     for token, token_name in tokens:
         if token is None:
-            err_msg: str = f'Token {token_name} is not defined.'
-            logger.critical(err_msg)
-            raise TypeError(err_msg)
+            msg: str = f'Token {token_name} is not defined.'
+            logger.critical(msg)
+            raise TypeError(msg)
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -102,10 +102,11 @@ def check_response(response: JSONAnswer) -> None:
     """
     try:
         hw_list: list[Homework] = response[HOMEWORKS_KEY]
-        _curr_date: int = response['current_date']
     except KeyError as err:
-        print('log no key in array')
-        raise KeyError(f'No key {HOMEWORKS_KEY} in response: {err}')
+        msg: str = f'No key {HOMEWORKS_KEY} in response: {err}'
+        logger.error(msg)
+        raise KeyError(msg)
+
     if type(hw_list) is not list:
         msg: str = 'Homeworks object type is not list'
         logger.error(msg)
@@ -122,8 +123,9 @@ def parse_status(homework: Homework) -> str:
         status: str = homework['status']
         verdict: str = HOMEWORK_VERDICTS[status]
     except KeyError as err:
-        print('log key err')
-        raise KeyError(f'Key is not found: {err}')
+        msg: str = f'Key is not found: {err}'
+        logger.error(msg)
+        raise KeyError(msg)
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
