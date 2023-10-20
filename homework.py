@@ -50,9 +50,9 @@ def check_tokens() -> None:
     ]
     for token, token_name in tokens:
         if token is None:
-            msg: str = f'Token {token_name} is not defined.'
-            logger.critical(msg)
-            raise TypeError(msg)
+            err_msg: str = f'Token {token_name} is not defined.'
+            logger.critical(err_msg)
+            raise TypeError(err_msg)
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
@@ -63,10 +63,10 @@ def send_message(bot: telegram.Bot, message: str) -> None:
             f'Sent message: "{message}" to chat ID {TELEGRAM_CHAT_ID}'
         )
     except telegram.error.TelegramError as err:
-        msg: str = (
+        err_msg: str = (
             f'Error while sending message to chat ID {TELEGRAM_CHAT_ID}: {err}'
         )
-        logger.error(msg)
+        logger.error(err_msg)
 
 
 def get_api_answer(
@@ -85,6 +85,7 @@ def get_api_answer(
         err_msg: str = f'Error while requesting API answer: {err}'
         logger.error(err_msg)
         raise APIError(err_msg) from err
+
     logger.info(
         f'Made successful request to homework API, status: {res.status_code}.'
     )
@@ -103,14 +104,14 @@ def check_response(response: JSONAnswer) -> None:
     try:
         hw_list: list[Homework] = response[HOMEWORKS_KEY]
     except KeyError as err:
-        msg: str = f'No key {HOMEWORKS_KEY} in response: {err}'
-        logger.error(msg)
-        raise KeyError(msg)
+        err_msg: str = f'No key {HOMEWORKS_KEY} in response: {err}'
+        logger.error(err_msg)
+        raise KeyError(err_msg)
 
     if type(hw_list) is not list:
-        msg: str = 'Homeworks object type is not list'
-        logger.error(msg)
-        raise TypeError(msg)
+        err_msg: str = 'Homeworks object type is not list'
+        logger.error(err_msg)
+        raise TypeError(err_msg)
 
 
 def parse_status(homework: Homework) -> str:
@@ -123,9 +124,9 @@ def parse_status(homework: Homework) -> str:
         status: str = homework['status']
         verdict: str = HOMEWORK_VERDICTS[status]
     except KeyError as err:
-        msg: str = f'Key is not found: {err}'
-        logger.error(msg)
-        raise KeyError(msg)
+        err_msg: str = f'Key is not found: {err}'
+        logger.error(err_msg)
+        raise KeyError(err_msg)
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
