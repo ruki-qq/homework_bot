@@ -79,7 +79,7 @@ def get_api_answer(
 ) -> JSONAnswer:
     """Gets answer from homeworks endpoint.
 
-    Raises: APIError, ValueError
+    Raises: APIError, ConnectionError
     """
     payload = {'from_date': timestamp}
     try:
