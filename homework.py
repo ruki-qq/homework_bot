@@ -162,6 +162,13 @@ def parse_status(homework: Homework) -> str:
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
+def send_error_msg(err_msg: str, last_msg: str, bot: telegram.Bot) -> str:
+    """Checks if error message is new and sends if it is."""
+    if err_msg != last_msg:
+        send_message(bot, err_msg)
+    return err_msg
+
+
 def main() -> None:
     """Main flow.
 
@@ -177,10 +184,9 @@ def main() -> None:
         try:
             api_ans: JSONAnswer = get_api_answer(timestamp)
         except Exception as err:
-            err_msg = f'Ошибка при обращении к API: {err}'
-            if err_msg != msg:
-                send_message(bot, err_msg)
-                msg = err_msg
+            msg = send_error_msg(
+                f'Ошибка при обращении к API: {err}', msg, bot
+            )
             logger.error(err, exc_info=True)
             time.sleep(RETRY_PERIOD)
             continue
@@ -188,10 +194,9 @@ def main() -> None:
         try:
             check_response(api_ans)
         except Exception as err:
-            err_msg = f'Непредусмотренный ответ от API: {err}'
-            if err_msg != msg:
-                send_message(bot, err_msg)
-                msg = err_msg
+            msg = send_error_msg(
+                f'Непредусмотренный ответ от API: {err}', msg, bot
+            )
             logger.error(err, exc_info=True)
             time.sleep(RETRY_PERIOD)
             continue
@@ -205,10 +210,9 @@ def main() -> None:
             msg = parse_status(homeworks.pop())
             send_message(bot, msg)
         except Exception as err:
-            err_msg = f'Ошибка при проверке статуса ДЗ: {err}'
-            if err_msg != msg:
-                send_message(bot, err_msg)
-                msg = err_msg
+            msg = send_error_msg(
+                f'Ошибка при проверке статуса ДЗ: {err}', msg, bot
+            )
             logger.error(err, exc_info=True)
             continue
         finally:
