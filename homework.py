@@ -2,13 +2,14 @@ import logging
 import os
 import sys
 import time
+from contextlib import suppress
 from http import HTTPStatus
 
 import requests
 import telegram
 from dotenv import load_dotenv
 
-from custom_exeptions import APIError
+from custom_exeptions import APIError, TgBotError
 from custom_types import Homework, JSONAnswer
 
 load_dotenv()
@@ -34,6 +35,8 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 HOMEWORKS_KEY = 'homeworks'
 CURR_TIME_KEY = 'current_date'
+HOMEWORK_NAME_KEY = 'homework_name'
+HOMEWORK_STATUS_KEY = 'status'
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -48,10 +51,9 @@ def check_tokens() -> None:
     Raises: TypeError
     """
     token_names = ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID')
-    empty_tokens: list[str] = []
-    for name in token_names:
-        if globals().get(name) is None:
-            empty_tokens.append(name)
+    empty_tokens: list[str] = [
+        name for name in token_names if globals().get(name) is None
+    ]
     if empty_tokens:
         names = ', '.join(empty_tokens)
         err_msg = f'Tokens [{names}] are not defined.'
@@ -71,7 +73,7 @@ def send_message(bot: telegram.Bot, message: str) -> None:
         err_msg = (
             f'Error while sending message to chat ID {TELEGRAM_CHAT_ID}: {err}'
         )
-        logger.error(err_msg)
+        raise TgBotError(err_msg) from err
 
 
 def get_api_answer(
@@ -116,10 +118,9 @@ def check_response(response: JSONAnswer) -> None:
         raise TypeError(err_msg)
 
     answer_keys = [HOMEWORKS_KEY, CURR_TIME_KEY]
-    missing_keys: list[str] = []
-    for key in answer_keys:
-        if key not in response:
-            missing_keys.append(key)
+    missing_keys: list[str] = [
+        key for key in answer_keys if key not in response
+    ]
     if missing_keys:
         keys = ', '.join(missing_keys)
         err_msg = f'Not found keys [{keys}] in response.'
@@ -140,17 +141,14 @@ def parse_status(homework: Homework) -> str:
     Raises: KeyError
     """
     logger.debug('Starting to check homework status...')
-    homework_keys = {'name': 'homework_name', 'status': 'status'}
-    missing_keys = []
-    for key in homework_keys.values():
-        if key not in homework:
-            missing_keys.append(key)
+    homework_keys = [HOMEWORK_NAME_KEY, HOMEWORK_STATUS_KEY]
+    missing_keys = [key for key in homework_keys if key not in homework]
     if missing_keys:
         keys = ', '.join(missing_keys)
         err_msg = f'Not found keys [{keys}] in homework obj.'
         raise KeyError(err_msg)
 
-    status: str = homework.get(homework_keys['status'])
+    status: str = homework.get(HOMEWORK_STATUS_KEY)
     try:
         verdict: str = HOMEWORK_VERDICTS[status]
     except KeyError:
@@ -158,15 +156,8 @@ def parse_status(homework: Homework) -> str:
         raise KeyError(err_msg)
     logger.debug('Homework status checked successfully.')
 
-    homework_name: str = homework.get(homework_keys['name'])
+    homework_name: str = homework.get(HOMEWORK_NAME_KEY)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-
-
-def send_error_msg(err_msg: str, last_msg: str, bot: telegram.Bot) -> str:
-    """Checks if error message is new and sends if it is."""
-    if err_msg != last_msg:
-        send_message(bot, err_msg)
-    return err_msg
 
 
 def main() -> None:
@@ -179,46 +170,30 @@ def main() -> None:
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    msg = ''
+    last_msg = ''
     while True:
         try:
             api_ans: JSONAnswer = get_api_answer(timestamp)
-        except Exception as err:
-            msg = send_error_msg(
-                f'Ошибка при обращении к API: {err}', msg, bot
-            )
-            logger.error(err, exc_info=True)
-            time.sleep(RETRY_PERIOD)
-            continue
-
-        try:
             check_response(api_ans)
-        except Exception as err:
-            msg = send_error_msg(
-                f'Непредусмотренный ответ от API: {err}', msg, bot
-            )
-            logger.error(err, exc_info=True)
-            time.sleep(RETRY_PERIOD)
-            continue
-
-        try:
             homeworks: list[Homework] = api_ans.get(HOMEWORKS_KEY)
-            if not homeworks:
+            if homeworks:
+                msg = parse_status(homeworks.pop())
+                send_message(bot, msg)
+                last_msg = msg
+            else:
                 logger.debug('No new statuses in homeworks.')
-                timestamp = api_ans.get(CURR_TIME_KEY)
-                continue
-            msg = parse_status(homeworks.pop())
-            send_message(bot, msg)
-        except Exception as err:
-            msg = send_error_msg(
-                f'Ошибка при проверке статуса ДЗ: {err}', msg, bot
-            )
+            timestamp = api_ans.get(CURR_TIME_KEY)
+        except TgBotError as err:
             logger.error(err, exc_info=True)
-            continue
+        except Exception as err:
+            err_msg = f'Ошибка при работе бота: {err}'
+            if err_msg != last_msg:
+                with suppress(TgBotError):
+                    send_message(bot, err_msg)
+                last_msg = err_msg
+            logger.error(err, exc_info=True)
         finally:
             time.sleep(RETRY_PERIOD)
-
-        timestamp = api_ans.get(CURR_TIME_KEY)
 
 
 if __name__ == '__main__':
