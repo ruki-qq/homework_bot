@@ -190,7 +190,7 @@ def main() -> None:
             if err_msg != last_msg:
                 with suppress(TgBotError):
                     send_message(bot, err_msg)
-                last_msg = err_msg
+                    last_msg = err_msg
             logger.error(err, exc_info=True)
         finally:
             time.sleep(RETRY_PERIOD)
