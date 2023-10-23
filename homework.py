@@ -62,7 +62,10 @@ def check_tokens() -> None:
 
 
 def send_message(bot: telegram.Bot, message: str) -> None:
-    """Sends provided message by Telegram Bot."""
+    """Sends provided message by Telegram Bot.
+
+    Raises: TgBotError
+    """
     logger.debug(f'Starting to send message to chat ID {TELEGRAM_CHAT_ID}')
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
